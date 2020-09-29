@@ -3,8 +3,7 @@ from flask import Flask
 import json
 
 import gspread
-from oauth2client.client import SignedJwtAssertionCredentials
-from oauth2client.client import SignedJwtAssertionCredentials
+from google.oauth2 import service_account
 import requests
 
 PORT = 3435
@@ -21,11 +20,11 @@ MSF_AUTH_HEADER = 'Basic ' + msf_auth_b64.decode('ascii')
 
 #Authenticate with Google Sheets
 google_creds_file = 'gspread_creds.json'
-with open(google_creds_file, 'r') as data:
+with open(google_creds_file, 'r') as f:
     google_creds_data = json.loads(f.read())
-scope = ['https://spreadsheets.google.com/feeds']
-google_creds = SignedJwtAssertionCredentials(google_creds_data['client_email'], google_creds_data['private_key'].encode(), scope)
-google_file = gspread.authorize(google_creds)
+google_creds = service_account.Credentials.from_service_account_info(google_creds_data)
+scoped_creds = google_creds.with_scopes(['https://www.googleapis.com/auth/drive'])
+google_file = gspread.authorize(scoped_creds)
 
 app = Flask(__name__)
 
@@ -46,14 +45,31 @@ def get_games():
     headers = {'Authorization': MSF_AUTH_HEADER}
     try:
         response = requests.get(url, headers = headers, timeout = 30)
-    except requests.exception.RequestException:
-        return 'HTTP response failed'
+    except requests.exception.RequestException as e:
+        print(e.message)
+        return 'Failed connecting to MySportsFeeds'
 
-    data = response.json()
+    #Occasionally, MySportsFeeds will error out, and not send JSON back as a result
+    #In these circumstances, requests treats the request as successful, but the JSON decode will fail
+    #This code catches this instance
+    try:
+        data = response.json()
+    except json.decoder.JSONDecodeError as e:
+        print(response.text, 'cannot be decoded as JSON')
+        return 'Failed connecting to MySportsFeeds'
 
     #Write the results to the Google Sheet
-    sheet = google_file.open('2020 Football Season').testsheet
-    sheet.update('A1', 'Hello, and welcome to Gillette Stadium!')
+    try:
+        sheet_file = google_file.open('2020 Football Season')
+    except gspread.exceptions.GSpreadException as e:
+        #Gspread uses their own exception class, which doesn't inherit from BaseException
+        #As a result, it doesn't have a "message" attribute
+        #As a result, we're going to print e.__class__ to get an idea of what the issue is
+        print(e.__class__)
+        return 'Failed connecting to Google Sheets'
+
+    sheet = sheet_file.worksheet('Automation Test Sheet')
+    sheet.update('A1', 'Successfully wrote data to the sheet!')
     for game in data['games']:
         print(game)
     return data
