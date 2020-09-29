@@ -1,10 +1,11 @@
-NFL Scores Server
+***NFL Scores Server***
 
 This is a simple web server that will consume NFL game and score data, and write it to a Google sheet.
 
 For now, it requires an active GET call to the /games route to generate data, and write it to the sheet; in the future, this will instead become a passive process that listens to a webhook instead
 
-USAGE
+USAGE:
+
 *Recommended*: Set up a Python3 virtual environment for the server
 
 Install the requirements with `pip3 install -r requirements.txt`
